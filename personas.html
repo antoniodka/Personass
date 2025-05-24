@@ -1,0 +1,624 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Personas</title>
+  <style>
+    body {
+  margin: 0;
+  padding: 1rem;
+  font-family: 'Roboto', 'Segoe UI', sans-serif;
+  background-color: #f5f7fa;
+  color: #2c3e50;
+}
+h2 {
+  color: #1a2e49;
+  font-size: 1.6rem;
+}
+button {
+  background-color: #0056b3;
+  color: white;
+  padding: 10px 16px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+button:hover {
+  background-color: #003d80;
+}
+.card {
+  background: white;
+  border-left: 5px solid #0056b3;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 12px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  display: flex;
+  gap: 15px;
+}
+.card-content {
+  flex: 1;
+}
+.card-content span.label {
+  display: block;
+  font-weight: bold;
+  color: #0056b3;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 10;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.modal-header {
+  font-weight: bold;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #0056b3;
+}
+
+.close {
+  float: right;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #777;
+}
+  </style>
+  
+</head>
+<body>
+  
+    <h2>Listado de Personas</h2>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+      <button onclick="abrirModal()">➕ Agregar Persona</button>
+      <button onclick="copiarConOpciones()">📋 Copiar con opciones</button>
+    </div>
+    <div style="margin: 10px 0; padding: 15px; background: #f0f4f8; border: 1px solid #ccc; border-radius: 8px;">
+      <strong>Campos a copiar:</strong>
+      <div style="display: flex; flex-direction: row; gap: 40px; flex-wrap: wrap; justify-content: space-between;">
+        <div style="min-width: 200px;">
+          <label><input type="checkbox" id="chkCargo"> Cargo</label><br>
+          <label><input type="checkbox" id="chkCedula"> Cédula</label><br>
+          <label><input type="checkbox" id="chkCorreo"> Correo</label><br>
+          <label><input type="checkbox" id="chkContacto"> Contacto de Emergencia</label><br>
+        </div>
+        <div style="flex: 1 1 200px;">
+          <label><input type="checkbox" id="chkNacimiento"> Fecha de nacimiento y edad</label><br>
+          <label><input type="checkbox" id="chkARL"> ARL</label><br>
+          <label><input type="checkbox" id="chkEPS"> EPS</label><br>
+          <label><input type="checkbox" id="chkPension"> Pensión</label><br>
+          <label><input type="checkbox" id="chkCuenta"> Copiar número de cuenta</label>
+        </div>
+      </div>
+    </div>
+
+<input id="buscador" placeholder="Buscar por nombre..." oninput="filtrarPersonas()" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;">
+  
+    <div id="listado" style="max-height: 400px; overflow-y: auto; padding-right: 10px; margin-bottom: 20px;"></div>
+  
+  <div id="mensajeCopiado">¡Datos copiados al portapapeles!</div>
+
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modalTitulo">Agregar Persona</span>
+        <span class="close" onclick="cerrarModal()">×</span>
+      </div>
+      <input id="nombre" placeholder="Nombre">
+      <input id="cedula" placeholder="Cédula">
+      <input id="cargo" placeholder="Cargo">
+      <input id="correo" placeholder="Correo">
+      <input id="emergenciaNombre" placeholder="Nombre de emergencia">
+      <input id="emergenciaNumero" placeholder="Teléfono de emergencia">
+      <input id="fechaNacimiento" placeholder="Fecha de nacimiento (YYYY-MM-DD)">
+      <div style="display: flex; gap: 10px;">
+        <input id="arl" placeholder="ARL" style="flex: 1;">
+        <input id="eps" placeholder="EPS" style="flex: 1;">
+        <input id="pension" placeholder="Pensión" style="flex: 1;">
+      </div>
+      <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <input id="tipoCuenta" placeholder="Tipo de cuenta" style="flex: 1;">
+        <input id="llaveCuenta" placeholder="Número o nombre de cuenta / llave" style="flex: 2;">
+      </div>
+      
+      <button onclick="guardarPersona()">Guardar</button>
+  </div>
+
+  <script>
+    let db;
+    let modoEditar = false;
+    let cedulaOriginal = null;
+
+let filtroBusqueda = "";
+
+    function filtrarPersonas() {
+      filtroBusqueda = document.getElementById("buscador").value.toLowerCase();
+      mostrarPersonas();
+    }
+
+
+
+
+
+
+
+    const datosIniciales = [
+  {
+    nombre: "Mauricio Villamizar Salazar",
+    cedula: "91.539.328",
+    cargo: "Ax. Logístico",
+    correo: "mauriciovillamizar104@gmail.com",
+    emergenciaNombre: "Gerzon Alberto Martínez",
+    emergenciaNumero: "3026050670",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "salud total",
+    pension: "porvenir",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3147471754"
+  },
+  {
+    nombre: "Antonio María Goittia Bautista",
+    cedula: "1.127.959.052",
+    cargo: "Coord. Alturas y Logístico",
+    correo: "antoniogoittia@gmail.com",
+    emergenciaNombre: "Rosanis Rodríguez Rivera",
+    emergenciaNumero: "3012061882",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "salud total",
+    pension: "porvenir",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3502724958"
+  },
+  {
+    nombre: "MIGUEL ASDRUBAL BAUTISTA MARTINEZ",
+    cedula: "1.232.588.983",
+    cargo: "Ax. Logístico",
+    correo: "chacal947@gmail.com",
+    emergenciaNombre: "Antonio Goittia",
+    emergenciaNumero: "3502724958",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "coosalud",
+    pension: "porvenir",
+    tipoCuenta: "ahorros bancolombia",
+    llaveCuenta: "30200003057"
+  },
+  {
+    nombre: "Dicson Miguel Pamplona Medina",
+    cedula: "1.098.707.692",
+    cargo: "Ax. Logístico",
+    correo: "medinadicson0118@gmail.com",
+    emergenciaNombre: "Angy Vannesa Barrios",
+    emergenciaNumero: "3229331185",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "salud total",
+    pension: "coolfondos",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3187043321"
+  },
+  {
+    nombre: "Juan Manuel Sarmiento Vargas",
+    cedula: "13.540.922",
+    cargo: "Representante Legal",
+    correo: "macrojuan@hotmail.com",
+    emergenciaNombre: "Susan Hernández",
+    emergenciaNumero: "3156480597",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "sanitas",
+    pension: "porvenir",
+    tipoCuenta: "ahorros bancolombia",
+    llaveCuenta: "79355925647"
+  },
+  {
+    nombre: "GERZON ALBERTO MARTINEZ SALAZAR",
+    cedula: "1.095.82.374",
+    cargo: "Ax. Logístico",
+    correo: "g3185550581@gmail.com",
+    emergenciaNombre: "Jeimy Katerine Mutis Chica",
+    emergenciaNumero: "3001820139",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "nueva eps",
+    pension: "protección",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3026050670"
+  },
+  {
+    nombre: "Juan David Plata Saavedra",
+    cedula: "1.098.650.515",
+    cargo: "Ax. Logístico",
+    correo: "saavedrajuanda32@gmail.com",
+    emergenciaNombre: "Sharon Valentina Carreño",
+    emergenciaNumero: "3045630216",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "",
+    pension: "",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3044133989"
+  },
+  {
+    nombre: "Yan Carlos Guerrero Fandiño",
+    cedula: "1.005.336.411",
+    cargo: "Ax. Logístico",
+    correo: "guerreroyancarlos58@gmail.com",
+    emergenciaNombre: "Maria Smith Fandiño",
+    emergenciaNumero: "3184605464",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "salud total",
+    pension: "protección",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3165003998"
+  },
+  {
+    nombre: "Farid Orlando Rivera Arias",
+    cedula: "1.095.839.423",
+    cargo: "Ax. Logístico",
+    correo: "horjanarias24@gmail.com",
+    emergenciaNombre: "Orlando Rivera Bastos",
+    emergenciaNumero: "3203135886",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "",
+    pension: "",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3505193007"
+  },
+  {
+    nombre: "KELIM DANI SARMIENTO SALAZAR",
+    cedula: "13.870.289",
+    cargo: "Ax. Logístico",
+    correo: "kelinsarmiento@hotmail.com",
+    emergenciaNombre: "Cesar Padú Sarmiento",
+    emergenciaNumero: "3187536662",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "coosalud",
+    pension: "coolpensiones",
+    tipoCuenta: "nequi de cesar",
+    llaveCuenta: "3187536662"
+  },
+  {
+    nombre: "Jose Gabriel Prieto Muñoz",
+    cedula: "PPT 4185755",
+    cargo: "Ax. Logístico",
+    correo: "josegabrielprieto819@gmail.com",
+    emergenciaNombre: "Karina Avendaño",
+    emergenciaNumero: "3208690447",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "coosalud",
+    pension: "",
+    tipoCuenta: "nequi",
+    llaveCuenta: "3224701952"
+  },
+  {
+    nombre: "WIlMER YAMIR MANTILLA BALAGUERA",
+    cedula: "1.098.740.167",
+    cargo: "Ax. Logístico",
+    correo: "macrojuan@hotmail.com",
+    emergenciaNombre: "Juan Manuel Sarmiento",
+    emergenciaNumero: "3157306515",
+    fechaNacimiento: "",
+    arl: "positiva",
+    eps: "",
+    pension: "",
+    tipoCuenta: "",
+    llaveCuenta: ""
+  }
+];
+
+
+
+
+
+
+
+
+
+
+
+
+window.onload = function () {
+      const campos = ["chkCargo", "chkCedula", "chkCorreo", "chkContacto", "chkNacimiento", "chkARL", "chkEPS", "chkPension", "chkCuenta"];
+      campos.forEach(id => {
+        const el = document.getElementById(id);
+        const saved = localStorage.getItem(id);
+        el.checked = saved === null ? true : saved === "true";
+        el.addEventListener("change", () => {
+          localStorage.setItem(id, el.checked);
+        });
+      });
+    };
+    function calcularEdad(fecha) {
+      const nacimiento = new Date(fecha);
+      const hoy = new Date();
+      let edad = hoy.getFullYear() - nacimiento.getFullYear();
+      const mes = hoy.getMonth() - nacimiento.getMonth();
+      if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+      }
+      return edad;
+    }
+
+    const request = indexedDB.open("BasePersonas", 1);
+    request.onerror = () => alert("Error abriendo la base de datos.");
+    request.onsuccess = () => {
+      db = request.result;
+      const tx = db.transaction("personas", "readonly");
+      const store = tx.objectStore("personas");
+      store.count().onsuccess = e => {
+        if (e.target.result === 0) {
+          const txAdd = db.transaction("personas", "readwrite");
+          const addStore = txAdd.objectStore("personas");
+          datosIniciales.forEach(p => addStore.put(p));
+          txAdd.oncomplete = mostrarPersonas;
+        } else {
+          mostrarPersonas();
+        }
+      };
+    };
+    request.onupgradeneeded = event => {
+      db = event.target.result;
+      db.createObjectStore("personas", { keyPath: "cedula" });
+    };
+
+    function abrirModal() {
+      modoEditar = false;
+      cedulaOriginal = null;
+      document.getElementById("modalTitulo").textContent = "Agregar Persona";
+      document.querySelectorAll("#modal input").forEach(input => input.value = "");
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function cerrarModal() {
+      document.getElementById("modal").style.display = "none";
+    }
+
+    function guardarPersona() {
+      const persona = {
+        nombre: document.getElementById("nombre").value,
+        cedula: document.getElementById("cedula").value,
+        cargo: document.getElementById("cargo").value,
+        correo: document.getElementById("correo").value,
+        emergenciaNombre: document.getElementById("emergenciaNombre").value,
+        emergenciaNumero: document.getElementById("emergenciaNumero").value,
+        fechaNacimiento: document.getElementById("fechaNacimiento").value,
+        arl: document.getElementById("arl").value,
+        eps: document.getElementById("eps").value,
+        pension: document.getElementById("pension").value,
+        tipoCuenta: document.getElementById("tipoCuenta").value,
+        llaveCuenta: document.getElementById("llaveCuenta").value
+      };
+      const tx = db.transaction("personas", "readwrite");
+      const store = tx.objectStore("personas");
+      if (modoEditar && cedulaOriginal && cedulaOriginal !== persona.cedula) {
+        store.delete(cedulaOriginal);
+      }
+      store.put(persona);
+      tx.oncomplete = () => {
+        cerrarModal();
+        mostrarPersonas();
+      };
+    }
+
+    function mostrarPersonas() {
+      const contenedor = document.getElementById("listado");
+      contenedor.innerHTML = "";
+      const personas = [];
+      const seleccionadas = new Set();
+      document.querySelectorAll(".selector:checked").forEach(el => {
+        const tarjeta = el.closest(".card");
+        if (tarjeta) seleccionadas.add(tarjeta.dataset.cedula);
+      });
+
+      const tx = db.transaction("personas", "readonly");
+      const store = tx.objectStore("personas");
+      store.openCursor().onsuccess = event => {
+        const cursor = event.target.result;
+        if (cursor) {
+          if (!filtroBusqueda || cursor.value.nombre.toLowerCase().includes(filtroBusqueda)) {
+            personas.push(cursor.value);
+          }
+          cursor.continue();
+        } else {
+          personas.sort((a, b) => a.nombre.localeCompare(b.nombre));
+          personas.forEach(p => {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.dataset.cedula = p.cedula;
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.className = "selector";
+            if (seleccionadas.has(p.cedula)) checkbox.checked = true;
+
+            const content = document.createElement("div");
+            content.className = "card-content";
+            content.innerHTML = `<b>${p.nombre}</b> - ${p.cargo}<br>
+              <span class="label">CÉDULA:</span> ${p.cedula}<br>
+              <span class="label">CORREO:</span> ${p.correo}<br>
+              <span class="label">EMERGENCIA:</span> ${p.emergenciaNombre} (${p.emergenciaNumero})<br>
+              ${p.fechaNacimiento ? `<span class="label">NACIMIENTO:</span> ${p.fechaNacimiento} (${calcularEdad(p.fechaNacimiento)} años)<br>` : ""}
+              ${p.arl ? `<span class="label">ARL:</span> ${p.arl}<br>` : ""}
+              ${p.eps ? `<span class="label">EPS:</span> ${p.eps}<br>` : ""}
+              ${p.pension ? `<span class="label">PENSIÓN:</span> ${p.pension}<br>` : ""}
+              ${p.llaveCuenta ? `<button onclick="copiarLlaveCuenta('${p.cedula}')">Copiar cuenta (${p.tipoCuenta})</button>` : ""}`;
+
+            const acciones = document.createElement("div");
+            acciones.className = "acciones";
+
+            const btnEditar = document.createElement("button");
+            btnEditar.textContent = "Editar";
+            btnEditar.onclick = () => editarPersona(p);
+
+            const btnEliminar = document.createElement("button");
+            btnEliminar.textContent = "Eliminar";
+            btnEliminar.style.background = "#dc3545";
+            btnEliminar.onclick = () => eliminarPersona(p.cedula);
+
+            acciones.appendChild(btnEditar);
+            acciones.appendChild(btnEliminar);
+
+            card.appendChild(checkbox);
+            card.appendChild(content);
+            card.appendChild(acciones);
+
+            contenedor.appendChild(card);
+          });
+        }
+      };
+    }
+    function editarPersona(p) {
+      modoEditar = true;
+      cedulaOriginal = p.cedula;
+      document.getElementById("modalTitulo").textContent = "Editar Persona";
+      document.getElementById("nombre").value = p.nombre;
+      document.getElementById("cedula").value = p.cedula;
+      document.getElementById("cargo").value = p.cargo;
+      document.getElementById("correo").value = p.correo;
+      document.getElementById("emergenciaNombre").value = p.emergenciaNombre;
+      document.getElementById("emergenciaNumero").value = p.emergenciaNumero;
+      document.getElementById("fechaNacimiento").value = p.fechaNacimiento || "";
+      document.getElementById("arl").value = p.arl || "";
+      document.getElementById("eps").value = p.eps || "";
+      document.getElementById("pension").value = p.pension || "";
+      document.getElementById("tipoCuenta").value = p.tipoCuenta || "";
+      document.getElementById("llaveCuenta").value = p.llaveCuenta || "";
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function copiarLlaveCuenta(cedula) {
+      const tx = db.transaction("personas", "readonly");
+      const store = tx.objectStore("personas");
+      const req = store.get(cedula);
+      req.onsuccess = () => {
+        const p = req.result;
+        if (p && p.llaveCuenta) {
+          navigator.clipboard.writeText(p.llaveCuenta).then(() => {
+            alert(`Copiado el número de cuenta de ${p.nombre}`);
+          });
+        } else {
+          alert("Esta persona no tiene cuenta registrada.");
+        }
+      };
+    }
+    function eliminarPersona(cedula) {
+      const txBuscar = db.transaction("personas", "readonly");
+      const storeBuscar = txBuscar.objectStore("personas");
+      const req = storeBuscar.get(cedula);
+      req.onsuccess = function () {
+        const persona = req.result;
+        if (persona && confirm(`¿Deseas eliminar a ${persona.nombre}?`)) {
+          const tx = db.transaction("personas", "readwrite");
+          tx.objectStore("personas").delete(cedula);
+          tx.oncomplete = mostrarPersonas;
+        }
+      };
+    }
+
+    function copiarConOpciones() {
+  const incluirCargo = document.getElementById("chkCargo").checked;
+  const incluirCedula = document.getElementById("chkCedula").checked;
+  const incluirCorreo = document.getElementById("chkCorreo").checked;
+  const incluirContacto = document.getElementById("chkContacto").checked;
+  const incluirNacimiento = document.getElementById("chkNacimiento").checked;
+  const incluirARL = document.getElementById("chkARL").checked;
+  const incluirEPS = document.getElementById("chkEPS").checked;
+  const incluirPension = document.getElementById("chkPension").checked;
+  const incluirCuenta = document.getElementById("chkCuenta").checked;
+
+  const seleccionados = [];
+
+  const tx = db.transaction("personas", "readonly");
+  const store = tx.objectStore("personas");
+
+  const tarjetas = document.querySelectorAll(".card");
+
+  tarjetas.forEach(card => {
+    const checkbox = card.querySelector(".selector");
+    if (checkbox && checkbox.checked) {
+      const cedula = card.dataset.cedula;
+      const req = store.get(cedula);
+      req.onsuccess = () => {
+        const p = req.result;
+        if (!p) return;
+
+        let texto = `${p.nombre.toUpperCase()}`;
+        if (incluirCargo && p.cargo) texto += `\nCargo: ${p.cargo.toUpperCase()}`;
+        if (incluirCedula) texto += `\nCédula: ${p.cedula}`;
+        if (incluirCorreo && p.correo) texto += `\nCorreo: ${p.correo.toUpperCase()}`;
+        if (incluirContacto && p.emergenciaNombre && p.emergenciaNumero) {
+          const tel = p.emergenciaNumero.replace(/[^\d]/g, "").replace(/(\\d{3})(\\d{3})(\\d{4})/, "($1)$2.$3");
+          texto += `\nContacto de Emergencia: ${p.emergenciaNombre.toUpperCase()} (${tel})`;
+        }
+        if (incluirNacimiento && p.fechaNacimiento) {
+          const edad = calcularEdad(p.fechaNacimiento);
+          texto += `\nFecha de Nacimiento: ${p.fechaNacimiento} (${edad} años)`;
+        }
+        if (incluirARL && p.arl) texto += `\nARL: ${p.arl.toUpperCase()}`;
+        if (incluirEPS && p.eps) texto += `\nEPS: ${p.eps.toUpperCase()}`;
+        if (incluirPension && p.pension) texto += `\nPensión: ${p.pension.toUpperCase()}`;
+        if (incluirCuenta && p.tipoCuenta && p.llaveCuenta) {
+          texto += `\nCuenta (${p.tipoCuenta.toUpperCase()}): ${p.llaveCuenta}`;
+        }
+
+        seleccionados.push(texto);
+
+        if (seleccionados.length === document.querySelectorAll(".card .selector:checked").length) {
+          navigator.clipboard.writeText(seleccionados.join("\n\n")).then(() => {
+            const mensaje = document.getElementById("mensajeCopiado");
+            mensaje.style.display = "block";
+            setTimeout(() => mensaje.style.display = "none", 3000);
+          }).catch(err => alert("Error al copiar: " + err));
+        }
+      };
+    }
+  });
+}
+
+  </script>
+</body>
+</html>
